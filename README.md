@@ -22,11 +22,13 @@
 - [问题定义](#问题定义)
 - [当前结论](#当前结论)
 - [核心能力](#核心能力)
+- [统一入口](#统一入口)
 - [技术架构](#技术架构)
 - [交互时序](#交互时序)
 - [项目结构](#项目结构)
 - [快速开始](#快速开始)
 - [生产使用指南](#生产使用指南)
+- [接口文档](#接口文档)
 - [检索服务](#检索服务)
 - [依赖与环境](#依赖与环境)
 - [现状评估](#现状评估)
@@ -87,7 +89,7 @@
 
 它已经覆盖下载、打标、归档、导出、同步、检索多个环节，不是只会跑一两个脚本的实验目录。
 
-### 2. 它已经隐含出合理架构，但还没有彻底收敛
+### 2. 它已经隐含出合理架构，并完成了第一阶段工程收敛
 
 从实现上已经形成：
 
@@ -96,14 +98,23 @@
 - 沉淀层
 - 服务层
 
-但这些能力仍散落在不同脚本中，缺少统一入口、统一依赖、统一配置。
+当前仓库已经补齐：
 
-### 3. 当前最可靠的主路径有两条
+- 统一依赖管理：`requirements.txt`、`pyproject.toml`
+- 统一环境变量模板：`.env.example`
+- 统一入口：`ai-content-realize`
 
-| 主路径 | 目标 | 推荐脚本 |
+但这些能力的内部实现仍主要建立在历史脚本之上，当前更准确的状态是“**入口已统一，内核仍待继续收敛**”。
+
+### 3. 当前最可靠的主路径已经被收口到统一 CLI
+
+| 主路径 | 目标 | 推荐命令 | 底层脚本 |
 |------|------|------|
-| 标签打标 | 产出标签 + 理由 + Excel | `gemini_label_materials.py` |
-| 内容归档 | 产出分镜 / 归档 Markdown 报告 | `gemma_dewu_archiver.py` |
+| 素材下载 | Excel -> 本地素材目录 | `ai-content-realize download` | `download_materials_improved.py` |
+| 标签打标 | 产出标签 + 理由 + Excel | `ai-content-realize label` | `gemini_label_materials.py` |
+| 内容归档 | 产出分镜 / 归档 Markdown 报告 | `ai-content-realize archive` | `gemma_dewu_archiver.py` |
+| 缓存同步 | 监控 cache 并导出 / 同步 SMB | `ai-content-realize sync-cache` | `cache_sync_to_smb.py` |
+| 依赖巡检 | 运行环境诊断 | `ai-content-realize doctor` | `check_multimodal_deps.py` |
 
 ### 4. 检索服务部分是平台化雏形，但不是单仓库自洽状态
 
@@ -169,6 +180,43 @@
 - 规则搜索
 - 单素材 explain
 - 服务不可用时的本地 fallback
+
+---
+
+## 统一入口
+
+当前仓库已经提供统一生产入口：
+
+```bash
+ai-content-realize --help
+```
+
+这个统一入口的作用不是重写所有底层逻辑，而是先把生产接手最痛的两个问题收掉：
+
+1. 安装方式不统一
+2. 主脚本入口不统一
+
+### CLI 命令概览
+
+| 命令 | 作用 | 输入 | 主要输出 |
+|------|------|------|------|
+| `download` | 扫描本地 Excel 并下载素材 | `.xlsx/.xls` | `downloaded_materials/<material_id>/` |
+| `label` | 使用 Gemini 进行标签打标 | 素材目录 | `gemini_label_cache.json`、Excel |
+| `archive` | 使用多 provider 生成归档报告 | 素材目录 / SMB 挂载目录 | `*_report.md` |
+| `sync-cache` | 监控缓存并导出 Excel / 同步 SMB | JSON cache | 本地 Excel、SMB 文件 |
+| `doctor` | 检查关键依赖 | 当前环境 | 终端诊断结果 |
+
+### 统一入口的现实边界
+
+当前 CLI 是**编排层**，不是已经完成内核统一后的框架层。  
+它解决的是“怎么装、怎么跑、从哪里进”的问题，但还没有完全解决“所有链路共享同一套内部配置、日志、错误模型”的问题。
+
+因此，当前项目最准确的判断是：
+
+- 外层入口已经统一
+- 内部实现仍是历史脚本并存
+- 这已经足以支撑生产交接
+- 但还不是终态架构
 
 ---
 
@@ -300,7 +348,10 @@ sequenceDiagram
 
 ```txt
 ai-content-realize/
-├── downloaded_materials_smb/              # 已归档素材数据
+├── ai_content_realize_cli.py              # 统一 CLI 入口
+├── pyproject.toml                         # 统一项目配置
+├── requirements.txt                       # 统一依赖清单
+├── .env.example                           # 环境变量模板
 ├── multimodal_label_embedding/            # Embedding provider 与渲染模板
 ├── multimodal_label_service/              # 检索服务与 CLI
 ├── download_materials_improved.py         # Excel -> 素材目录
@@ -338,6 +389,12 @@ pip install -r requirements.txt
 
 ```bash
 pip install -e .
+```
+
+安装后即可直接使用：
+
+```bash
+ai-content-realize --help
 ```
 
 ### 2. 安装系统依赖
@@ -403,11 +460,19 @@ ai-content-realize --help
 | `sync-cache` | 监控缓存并导出 / 同步 SMB | `cache_sync_to_smb.py` |
 | `doctor` | 检查关键依赖 | `check_multimodal_deps.py` |
 
+### 推荐生产入口顺序
+
+```bash
+ai-content-realize doctor
+ai-content-realize download --sample 50
+ai-content-realize label --materials-dir downloaded_materials
+ai-content-realize archive --media-type image --test
+ai-content-realize sync-cache --cache-file your_cache.json
+```
+
 ### 方案 A：标签打标并导出 Excel
 
 适用场景：需要稳定地输出“标签 + 理由 + Excel”。
-
-推荐脚本：[gemini_label_materials.py](/Users/kaori/Documents/ai-content-realize/gemini_label_materials.py:1)
 
 ```bash
 ai-content-realize label \
@@ -432,8 +497,6 @@ ai-content-realize label \
 ### 方案 B：生成素材归档 Markdown 报告
 
 适用场景：需要面向策划 / 运营输出结构化归档，而不只是标签。
-
-推荐脚本：[gemma_dewu_archiver.py](/Users/kaori/Documents/ai-content-realize/gemma_dewu_archiver.py:1)
 
 ```bash
 ai-content-realize archive \
@@ -484,8 +547,6 @@ ai-content-realize archive \
 
 ### 方案 D：结果自动同步共享盘
 
-推荐脚本：[cache_sync_to_smb.py](/Users/kaori/Documents/ai-content-realize/cache_sync_to_smb.py:1)
-
 ```bash
 ai-content-realize sync-cache
 ```
@@ -494,6 +555,25 @@ ai-content-realize sync-cache
 
 - 打标侧与结果消费侧分离
 - 运营希望持续看到最新结果
+
+---
+
+## 接口文档
+
+本次仓库已经新增独立接口文档：
+
+- [PRODUCTION_INTERFACE_REFERENCE.md](/Users/kaori/Documents/ai-content-realize/PRODUCTION_INTERFACE_REFERENCE.md:1)
+
+内容覆盖：
+
+- CLI 命令接口
+- HTTP 服务接口
+- 环境变量接口
+- 输入输出约定
+- 错误边界与生产约束
+- 项目现状评估、自我辨证与后续收敛建议
+
+建议把 README 作为总览，把接口文档作为执行规范与交接依据。
 
 ---
 
@@ -607,23 +687,25 @@ whisper
 3. **平台化方向明确**
    - `retriever`、`embedding provider`、`rule search`、`explain` 都说明它不再只是临时脚本集合。
 
+4. **第一阶段工程收敛已经完成**
+   - 已有统一依赖文件
+   - 已有统一环境模板
+   - 已有统一 CLI 入口
+
 ### 当前缺口
 
-1. **缺少统一依赖管理**
-   - 无 `requirements.txt`
-   - 无 `pyproject.toml`
-
-2. **缺少统一入口**
-   - 多个主脚本功能相近但边界不同
-
-3. **仓库不完全自洽**
+1. **仓库不完全自洽**
    - 部分服务能力依赖外部模块
 
-4. **配置不统一**
+2. **统一入口已建立，但内部仍是脚本编排**
+   - CLI 统一了解决“怎么进”
+   - 但底层还没有统一成共享配置、共享日志、共享错误码的内核
+
+3. **配置不统一**
    - 环境变量命名分裂
    - 路径配置仍有本地强绑定
 
-5. **测试体系未成型**
+4. **测试体系未成型**
    - 存在大量 `test_*.py`
    - 但主要是脚本式验证，不是 CI 可消费的自动化测试
 
@@ -631,7 +713,7 @@ whisper
 
 这个项目最准确的状态描述不是“未完成”，而是：
 
-> **业务链路已经跑通，生产经验已经积累，但工程外壳还没有完成收敛。**
+> **业务链路已经跑通，第一阶段工程外壳已经收敛，但内部实现仍处于“统一编排 + 历史脚本并存”的过渡态。**
 
 ---
 
@@ -639,10 +721,10 @@ whisper
 
 ### 第一优先级
 
-1. 增加 `requirements.txt` 或 `pyproject.toml`
-2. 增加 `.env.example`
-3. 明确官方主入口脚本
-4. 区分 `production/` 与 `legacy/` 脚本
+1. 将统一 CLI 进一步下沉为共享内核，而不是继续代理历史脚本
+2. 建立统一日志模型和统一错误码
+3. 区分 `production/` 与 `legacy/` 脚本
+4. 为检索服务补齐缺失依赖说明或内嵌依赖包
 
 ### 第二优先级
 
@@ -664,6 +746,10 @@ whisper
 
 ### 推荐先读
 
+- [ai_content_realize_cli.py](/Users/kaori/Documents/ai-content-realize/ai_content_realize_cli.py:1)
+- [pyproject.toml](/Users/kaori/Documents/ai-content-realize/pyproject.toml:1)
+- [requirements.txt](/Users/kaori/Documents/ai-content-realize/requirements.txt:1)
+- [.env.example](/Users/kaori/Documents/ai-content-realize/.env.example:1)
 - [gemini_label_materials.py](/Users/kaori/Documents/ai-content-realize/gemini_label_materials.py:1)
 - [gemma_dewu_archiver.py](/Users/kaori/Documents/ai-content-realize/gemma_dewu_archiver.py:1)
 - [download_materials_improved.py](/Users/kaori/Documents/ai-content-realize/download_materials_improved.py:1)
