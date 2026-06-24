@@ -20,6 +20,7 @@ import time
 import shutil
 import hashlib
 import logging
+import argparse
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
@@ -65,6 +66,22 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+def configure_logging(log_file: str):
+    """Reconfigure root logging handlers to write to the requested log file."""
+    root_logger = logging.getLogger()
+    for handler in list(root_logger.handlers):
+        root_logger.removeHandler(handler)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(levelname)s] %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler()
+        ]
+    )
 
 
 class FileLock:
@@ -513,6 +530,25 @@ class CacheSyncMonitor:
 
 def main():
     """主函数"""
+    global CACHE_FILE, SMB_SHARE_PATH, SMB_FILENAME, LOCAL_EXCEL_DIR, POLL_INTERVAL, LOG_FILE
+
+    parser = argparse.ArgumentParser(description="监控缓存文件变化并自动导出 Excel / 同步 SMB")
+    parser.add_argument("--cache-file", default=CACHE_FILE, help="待监控的 JSON 缓存文件路径")
+    parser.add_argument("--smb-path", default=SMB_SHARE_PATH, help="SMB 共享目录路径")
+    parser.add_argument("--smb-filename", default=SMB_FILENAME, help="同步到 SMB 后的文件名")
+    parser.add_argument("--local-excel-dir", default=LOCAL_EXCEL_DIR, help="本地 Excel 导出目录")
+    parser.add_argument("--poll-interval", type=int, default=POLL_INTERVAL, help="轮询间隔（秒）")
+    parser.add_argument("--log-file", default=LOG_FILE, help="日志文件路径")
+    args = parser.parse_args()
+
+    CACHE_FILE = args.cache_file
+    SMB_SHARE_PATH = args.smb_path
+    SMB_FILENAME = args.smb_filename
+    LOCAL_EXCEL_DIR = args.local_excel_dir
+    POLL_INTERVAL = args.poll_interval
+    LOG_FILE = args.log_file
+    configure_logging(LOG_FILE)
+
     # 检查依赖
     try:
         import pandas

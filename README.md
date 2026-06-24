@@ -328,10 +328,16 @@ ai-content-realize/
 
 ### 1. 安装基础依赖
 
-仓库当前没有统一依赖文件，先按最小运行集安装：
+当前仓库已提供统一依赖文件。推荐两种安装方式：
 
 ```bash
-pip install requests pandas openpyxl Pillow tqdm opencv-python python-dotenv openai httpx fastapi pydantic numpy markdown reportlab matplotlib
+pip install -r requirements.txt
+```
+
+或作为本地工具安装：
+
+```bash
+pip install -e .
 ```
 
 ### 2. 安装系统依赖
@@ -345,47 +351,57 @@ brew install ffmpeg
 至少按实际使用链路准备：
 
 ```bash
-export YESCODE_API_KEY=...
-export YESCODE_GEMINI_PROXY_BASE_URL=https://co.yes.vg/gemini
-
-export MIN_MAX_API_KEY=...
-export MINMAX_API_KEY=...
-export CUSTOM_MINMAX_API_KEY=...
-export CUSTOM_MINMAX_URL=...
-
-export MINICPM_API_KEY=...
-export MINICPM_BASE_URL=...
-export MINICPM_INSTRUCT_MODEL_ID=minicpm-v-4
+cp .env.example .env
 ```
+
+然后按实际 provider 填写 `.env`。
 
 ### 4. 准备素材目录
 
 如果素材还在 Excel 中，先执行：
 
 ```bash
-python3 download_materials_improved.py --sample 50
+ai-content-realize download --sample 50
 ```
 
 ### 5. 跑最小标签任务
 
 ```bash
-python3 gemini_label_materials.py \
-  --materials_dir downloaded_materials \
-  --output_file gemini_labeled_results.xlsx \
+ai-content-realize label \
+  --materials-dir downloaded_materials \
+  --output-file gemini_labeled_results.xlsx \
   --delay 1 \
-  --batch_size 5 \
-  --batch_delay 20
+  --batch-size 5 \
+  --batch-delay 20
 ```
 
 ### 6. 跑最小归档任务
 
 ```bash
-python3 gemma_dewu_archiver.py --media-type image --test
+ai-content-realize archive --media-type image --test
 ```
 
 ---
 
 ## 生产使用指南
+
+### 统一入口
+
+当前仓库已提供统一生产入口：
+
+```bash
+ai-content-realize --help
+```
+
+支持的主命令：
+
+| 命令 | 作用 | 底层脚本 |
+|------|------|------|
+| `download` | 从本地 Excel 扫描并下载素材 | `download_materials_improved.py` |
+| `label` | 使用 Gemini 进行标签打标 | `gemini_label_materials.py` |
+| `archive` | 使用多 provider 生成归档报告 | `gemma_dewu_archiver.py` |
+| `sync-cache` | 监控缓存并导出 / 同步 SMB | `cache_sync_to_smb.py` |
+| `doctor` | 检查关键依赖 | `check_multimodal_deps.py` |
 
 ### 方案 A：标签打标并导出 Excel
 
@@ -394,12 +410,12 @@ python3 gemma_dewu_archiver.py --media-type image --test
 推荐脚本：[gemini_label_materials.py](/Users/kaori/Documents/ai-content-realize/gemini_label_materials.py:1)
 
 ```bash
-python3 gemini_label_materials.py \
-  --materials_dir downloaded_materials \
-  --output_file gemini_labeled_results.xlsx \
+ai-content-realize label \
+  --materials-dir downloaded_materials \
+  --output-file gemini_labeled_results.xlsx \
   --delay 1 \
-  --batch_size 5 \
-  --batch_delay 20
+  --batch-size 5 \
+  --batch-delay 20
 ```
 
 产物：
@@ -420,7 +436,7 @@ python3 gemini_label_materials.py \
 推荐脚本：[gemma_dewu_archiver.py](/Users/kaori/Documents/ai-content-realize/gemma_dewu_archiver.py:1)
 
 ```bash
-python3 gemma_dewu_archiver.py \
+ai-content-realize archive \
   --provider custom_minmax \
   --media-type image \
   --sample 100
@@ -429,7 +445,7 @@ python3 gemma_dewu_archiver.py \
 或：
 
 ```bash
-python3 gemma_dewu_archiver.py \
+ai-content-realize archive \
   --provider minicpm \
   --media-type video \
   --sample 50
@@ -471,7 +487,7 @@ python3 gemma_dewu_archiver.py \
 推荐脚本：[cache_sync_to_smb.py](/Users/kaori/Documents/ai-content-realize/cache_sync_to_smb.py:1)
 
 ```bash
-python3 cache_sync_to_smb.py
+ai-content-realize sync-cache
 ```
 
 适用场景：
@@ -521,6 +537,12 @@ uvicorn multimodal_label_service.app:app --host 0.0.0.0 --port 8000
 
 ### Python 依赖
 
+#### 统一安装文件
+
+- [requirements.txt](/Users/kaori/Documents/ai-content-realize/requirements.txt:1)
+- [pyproject.toml](/Users/kaori/Documents/ai-content-realize/pyproject.toml:1)
+- [.env.example](/Users/kaori/Documents/ai-content-realize/.env.example:1)
+
 #### 最小运行集
 
 ```txt
@@ -563,7 +585,7 @@ whisper
 
 ### 环境变量现状
 
-当前仓库存在命名分叉，这是已知问题：
+当前仓库仍存在部分历史命名分叉，这是已知问题：
 
 - `MIN_MAX_API_KEY`
 - `MINMAX_API_KEY`
@@ -658,4 +680,3 @@ whisper
 - 其他 `*_ANALYSIS.md`、`*_SUMMARY.md`
 
 这些文件对理解问题演进有帮助，但不应替代本 README 作为当前入口文档。
-

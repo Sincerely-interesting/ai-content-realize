@@ -17,11 +17,18 @@ from extract_frames import extract_frames
 GEMINI_API_MODEL = "gemini-2.5-flash" 
 GEMINI_CACHE_FILE = 'gemini_label_cache.json' # Cache file for storing results
 
-YESCODE_API_KEY = os.getenv("YESCODE_API_KEY") or os.getenv("GEMINI_API_KEY")
-YESCODE_GEMINI_PROXY_BASE_URL = os.getenv("YESCODE_GEMINI_PROXY_BASE_URL") or "https://co.yes.vg/gemini" 
+YESCODE_GEMINI_PROXY_BASE_URL = os.getenv("YESCODE_GEMINI_PROXY_BASE_URL") or "https://co.yes.vg/gemini"
 
-if not YESCODE_API_KEY:
-    raise ValueError("YESCODE_API_KEY environment variable not set. Please set it before running the script.")
+
+def get_gemini_api_key():
+    """Resolve the Gemini-compatible API key from the environment at runtime."""
+    api_key = os.getenv("YESCODE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "YESCODE_API_KEY or GEMINI_API_KEY environment variable not set. "
+            "Please set one of them before running the script."
+        )
+    return api_key
 
 def load_cache():
     """Loads existing labels from the cache file."""
@@ -46,9 +53,10 @@ def encode_image_to_base64(image_path):
 
 def analyze_image_with_gemini(image_path, prompt):
     """Sends an image and a prompt to the Gemini API via YesCode proxy for analysis."""
+    api_key = get_gemini_api_key()
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {YESCODE_API_KEY}" # YesCode usually uses Authorization header
+        "Authorization": f"Bearer {api_key}" # YesCode usually uses Authorization header
     }
     
     try:
@@ -340,9 +348,6 @@ def main():
         print("未找到任何素材文件夹进行打标。")
     
     print(f"打标结果已保存到缓存文件：{GEMINI_CACHE_FILE}")
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
