@@ -15,7 +15,6 @@ __pycache__/
 
 # Large local datasets / media
 downloaded_materials/
-downloaded_materials_smb/
 dewu_material_archives/
 
 # Generated reports / exports
